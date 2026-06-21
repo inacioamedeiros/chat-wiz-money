@@ -36,6 +36,10 @@ const NluSchema = z.object({
     merchant: z.string().nullable(),
     note: z.string().nullable(),
     recurrence_flag: z.boolean().default(false),
+    goal_title: z.string().nullable().default(null),
+    goal_target_amount: z.number().nullable().default(null),
+    goal_target_date: z.string().nullable().default(null).describe("ISO date YYYY-MM-DD"),
+    goal_current_amount: z.number().nullable().default(null),
   }),
   reply: z.string().describe("Resposta amigável e curta do agente, em PT-BR"),
 });
@@ -115,7 +119,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
       const result = await generateText({
         model,
         system: buildSystemPrompt(profile?.monthly_income ? Number(profile.monthly_income) : null),
-        prompt: `Mensagem do usuário: "${data.text}"\n\nResponda SOMENTE com um objeto JSON válido seguindo este formato (sem markdown, sem comentários):\n{\n  "intent": "register_expense" | "register_income" | "transfer" | "query_balance" | "create_goal" | "update_goal" | "delete_goal" | "ask_advice" | "query_report" | "correct_classification" | "smalltalk",\n  "intent_confidence": 0.0-1.0,\n  "entities": {\n    "amount": number | null,\n    "currency": "BRL" | null,\n    "date": "YYYY-MM-DD" | null,\n    "category": string | null,\n    "category_confidence": 0.0-1.0 | null,\n    "category_alternatives": [string, string, string],\n    "merchant": string | null,\n    "note": string | null,\n    "recurrence_flag": boolean\n  },\n  "reply": "resposta curta e amigável em PT-BR"\n}`,
+        prompt: `Mensagem do usuário: "${data.text}"\n\nResponda SOMENTE com um objeto JSON válido seguindo este formato (sem markdown, sem comentários):\n{\n  "intent": "register_expense" | "register_income" | "transfer" | "query_balance" | "create_goal" | "update_goal" | "delete_goal" | "ask_advice" | "query_report" | "correct_classification" | "smalltalk",\n  "intent_confidence": 0.0-1.0,\n  "entities": {\n    "amount": number | null,\n    "currency": "BRL" | null,\n    "date": "YYYY-MM-DD" | null,\n    "category": string | null,\n    "category_confidence": 0.0-1.0 | null,\n    "category_alternatives": [string, string, string],\n    "merchant": string | null,\n    "note": string | null,\n    "recurrence_flag": boolean,\n    "goal_title": string | null,\n    "goal_target_amount": number | null,\n    "goal_target_date": "YYYY-MM-DD" | null,\n    "goal_current_amount": number | null\n  },\n  "reply": "resposta curta e amigável em PT-BR"\n}\n\nPara intent = create_goal: extraia goal_title (ex: "Viagem", "Reserva de emergência"), goal_target_amount (valor a alcançar) e goal_target_date quando houver prazo (ex: "em julho" → último dia de julho do ano corrente ou próximo). goal_current_amount é opcional.\nPara intent = update_goal (ex: "aportei 200 na viagem"): goal_title é o nome da meta e amount é o aporte.\nPara intent = delete_goal: goal_title é o nome da meta a remover.`,
       });
       const cleaned = result.text.replace(/```json\n?|```/g, "").trim();
       const parsed = JSON.parse(cleaned);
@@ -129,6 +133,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           amount: null, currency: null, date: null, category: null,
           category_confidence: null, category_alternatives: [],
           merchant: null, note: null, recurrence_flag: false,
+          goal_title: null, goal_target_amount: null, goal_target_date: null, goal_current_amount: null,
         },
         reply: "Não consegui processar agora. Pode tentar reformular?",
       };
@@ -166,6 +171,46 @@ export const sendChatMessage = createServerFn({ method: "POST" })
       };
     }
 
+    // 5b. ações de meta
+    let goalAction: null | { action: "created" | "updated" | "deleted"; goal_id: string | null; goal_title: string; message: string } = null;
+    try {
+      if (nlu.intent === "create_goal" && nlu.entities.goal_title && nlu.entities.goal_target_amount && nlu.entities.goal_target_amount > 0) {
+        const { data: g, error } = await supabase.from("goals").insert({
+          user_id: userId,
+          title: nlu.entities.goal_title,
+          target_amount: nlu.entities.goal_target_amount,
+          current_amount: nlu.entities.goal_current_amount ?? 0,
+          target_date: nlu.entities.goal_target_date,
+        }).select().single();
+        if (!error && g) {
+          goalAction = { action: "created", goal_id: g.id, goal_title: g.title, message: `Meta "${g.title}" criada: R$ ${Number(g.target_amount).toFixed(2)}${g.target_date ? ` até ${g.target_date}` : ""}.` };
+          nlu.reply = `${nlu.reply}\n\n✅ ${goalAction.message}`;
+        }
+      } else if (nlu.intent === "update_goal" && nlu.entities.goal_title && nlu.entities.amount && nlu.entities.amount > 0) {
+        const { data: existing } = await supabase
+          .from("goals").select("*").eq("user_id", userId).ilike("title", `%${nlu.entities.goal_title}%`).limit(1).maybeSingle();
+        if (existing) {
+          const newAmount = Number(existing.current_amount) + nlu.entities.amount;
+          const { data: g } = await supabase.from("goals").update({ current_amount: newAmount }).eq("id", existing.id).select().single();
+          if (g) {
+            const remaining = Math.max(0, Number(g.target_amount) - newAmount);
+            goalAction = { action: "updated", goal_id: g.id, goal_title: g.title, message: `+R$ ${nlu.entities.amount.toFixed(2)} em "${g.title}". Faltam R$ ${remaining.toFixed(2)}.` };
+            nlu.reply = `${nlu.reply}\n\n✅ ${goalAction!.message}`;
+          }
+        }
+      } else if (nlu.intent === "delete_goal" && nlu.entities.goal_title) {
+        const { data: existing } = await supabase
+          .from("goals").select("*").eq("user_id", userId).ilike("title", `%${nlu.entities.goal_title}%`).limit(1).maybeSingle();
+        if (existing) {
+          await supabase.from("goals").delete().eq("id", existing.id);
+          goalAction = { action: "deleted", goal_id: existing.id, goal_title: existing.title, message: `Meta "${existing.title}" removida.` };
+          nlu.reply = `${nlu.reply}\n\n🗑️ ${goalAction!.message}`;
+        }
+      }
+    } catch (e) {
+      console.error("[chat] goal action error", e);
+    }
+
     // 6. salva resposta do assistente
     const { data: asstMsg, error: asstErr } = await supabase
       .from("messages")
@@ -179,6 +224,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           intent_confidence: nlu.intent_confidence,
           entities: nlu.entities,
           proposed_transaction: proposedTransaction,
+          goal_action: goalAction,
         },
       })
       .select()
