@@ -182,7 +182,7 @@ function ChatPage() {
 
         <div className="border-t bg-card p-3">
           <PromptInput
-            onSubmit={(e) => { e.preventDefault?.(); onSend(input); }}
+            onSubmit={() => onSend(input)}
           >
             <PromptInputTextarea
               ref={inputRef}
