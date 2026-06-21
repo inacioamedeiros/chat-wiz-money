@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /auth
+Disallow: /hoje
+Disallow: /chat
+Disallow: /metas
+Disallow: /relatorios
+Disallow: /perfil

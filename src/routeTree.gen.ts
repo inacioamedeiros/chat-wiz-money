@@ -9,38 +9,170 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
+import { Route as AuthenticatedMetasRouteImport } from './routes/_authenticated/metas'
+import { Route as AuthenticatedHojeRouteImport } from './routes/_authenticated/hoje'
+import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat.index'
+import { Route as AuthenticatedChatThreadIdRouteImport } from './routes/_authenticated/chat.$threadId'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMetasRoute = AuthenticatedMetasRouteImport.update({
+  id: '/metas',
+  path: '/metas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHojeRoute = AuthenticatedHojeRouteImport.update({
+  id: '/hoje',
+  path: '/hoje',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedChatIndexRoute = AuthenticatedChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedChatThreadIdRoute =
+  AuthenticatedChatThreadIdRouteImport.update({
+    id: '/chat/$threadId',
+    path: '/chat/$threadId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/hoje': typeof AuthenticatedHojeRoute
+  '/metas': typeof AuthenticatedMetasRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
+  '/chat/': typeof AuthenticatedChatIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/hoje': typeof AuthenticatedHojeRoute
+  '/metas': typeof AuthenticatedMetasRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
+  '/chat': typeof AuthenticatedChatIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/_authenticated/hoje': typeof AuthenticatedHojeRoute
+  '/_authenticated/metas': typeof AuthenticatedMetasRoute
+  '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
+  '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
+  '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/sitemap.xml'
+    | '/hoje'
+    | '/metas'
+    | '/perfil'
+    | '/relatorios'
+    | '/chat/$threadId'
+    | '/chat/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/sitemap.xml'
+    | '/hoje'
+    | '/metas'
+    | '/perfil'
+    | '/relatorios'
+    | '/chat/$threadId'
+    | '/chat'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/sitemap.xml'
+    | '/_authenticated/hoje'
+    | '/_authenticated/metas'
+    | '/_authenticated/perfil'
+    | '/_authenticated/relatorios'
+    | '/_authenticated/chat/$threadId'
+    | '/_authenticated/chat/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +180,78 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/relatorios': {
+      id: '/_authenticated/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/perfil': {
+      id: '/_authenticated/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof AuthenticatedPerfilRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/metas': {
+      id: '/_authenticated/metas'
+      path: '/metas'
+      fullPath: '/metas'
+      preLoaderRoute: typeof AuthenticatedMetasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hoje': {
+      id: '/_authenticated/hoje'
+      path: '/hoje'
+      fullPath: '/hoje'
+      preLoaderRoute: typeof AuthenticatedHojeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/chat/': {
+      id: '/_authenticated/chat/'
+      path: '/chat'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AuthenticatedChatIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/chat/$threadId': {
+      id: '/_authenticated/chat/$threadId'
+      path: '/chat/$threadId'
+      fullPath: '/chat/$threadId'
+      preLoaderRoute: typeof AuthenticatedChatThreadIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedHojeRoute: typeof AuthenticatedHojeRoute
+  AuthenticatedMetasRoute: typeof AuthenticatedMetasRoute
+  AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
+  AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedChatThreadIdRoute: typeof AuthenticatedChatThreadIdRoute
+  AuthenticatedChatIndexRoute: typeof AuthenticatedChatIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedHojeRoute: AuthenticatedHojeRoute,
+  AuthenticatedMetasRoute: AuthenticatedMetasRoute,
+  AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
+  AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedChatThreadIdRoute: AuthenticatedChatThreadIdRoute,
+  AuthenticatedChatIndexRoute: AuthenticatedChatIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
