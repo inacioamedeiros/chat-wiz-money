@@ -36,6 +36,10 @@ const NluSchema = z.object({
     merchant: z.string().nullable(),
     note: z.string().nullable(),
     recurrence_flag: z.boolean().default(false),
+    goal_title: z.string().nullable().default(null),
+    goal_target_amount: z.number().nullable().default(null),
+    goal_target_date: z.string().nullable().default(null).describe("ISO date YYYY-MM-DD"),
+    goal_current_amount: z.number().nullable().default(null),
   }),
   reply: z.string().describe("Resposta amigável e curta do agente, em PT-BR"),
 });
