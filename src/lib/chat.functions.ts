@@ -183,7 +183,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           target_date: nlu.entities.goal_target_date,
         }).select().single();
         if (!error && g) {
-          goalAction = { action: "created", goal: g, message: `Meta "${g.title}" criada: R$ ${Number(g.target_amount).toFixed(2)}${g.target_date ? ` até ${g.target_date}` : ""}.` };
+          goalAction = { action: "created", goal_id: g.id, goal_title: g.title, message: `Meta "${g.title}" criada: R$ ${Number(g.target_amount).toFixed(2)}${g.target_date ? ` até ${g.target_date}` : ""}.` };
           nlu.reply = `${nlu.reply}\n\n✅ ${goalAction.message}`;
         }
       } else if (nlu.intent === "update_goal" && nlu.entities.goal_title && nlu.entities.amount && nlu.entities.amount > 0) {
