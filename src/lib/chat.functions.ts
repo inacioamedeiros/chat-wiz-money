@@ -133,6 +133,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           amount: null, currency: null, date: null, category: null,
           category_confidence: null, category_alternatives: [],
           merchant: null, note: null, recurrence_flag: false,
+          goal_title: null, goal_target_amount: null, goal_target_date: null, goal_current_amount: null,
         },
         reply: "Não consegui processar agora. Pode tentar reformular?",
       };
