@@ -33,15 +33,6 @@ Critérios de aceitação
 
 ---
 
-## 🖼️ Prints / Vídeos das Interações
-
-Inclua aqui **screenshots** ou pequenos **GIFs/vídeos** mostrando:  
-- A conversa com o Copilot para gerar o PRD.  
-- O prompt final sendo colado no Lovable.  
-- A resposta do Lovable com o plano de MVP ou telas simuladas.  
-
----
-
 ## 📱 Resumo do App de Finanças Pessoais
 
 O aplicativo permite que o usuário **controle suas finanças por meio de conversas naturais**.  
