@@ -265,6 +265,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           entities: nlu.entities,
           proposed_transaction: proposedTransaction,
           goal_action: goalAction,
+          saved_transaction_id: savedTransactionId,
         },
       })
       .select()
