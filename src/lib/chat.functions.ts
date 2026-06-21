@@ -172,7 +172,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
     }
 
     // 5b. ações de meta
-    let goalAction: null | { action: "created" | "updated" | "deleted"; goal: Record<string, unknown> | null; message: string } = null;
+    let goalAction: null | { action: "created" | "updated" | "deleted"; goal_id: string | null; goal_title: string; message: string } = null;
     try {
       if (nlu.intent === "create_goal" && nlu.entities.goal_title && nlu.entities.goal_target_amount && nlu.entities.goal_target_amount > 0) {
         const { data: g, error } = await supabase.from("goals").insert({
