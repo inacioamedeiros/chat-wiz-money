@@ -151,6 +151,7 @@ function ChatPage() {
                   note: string | null;
                   is_recurring: boolean;
                 };
+                saved_transaction_id?: string | null;
               };
               return (
                 <Message key={m.id} from={m.role as "user" | "assistant"}>
@@ -166,6 +167,7 @@ function ChatPage() {
                       messageId={m.id}
                       originalText={messages[messages.indexOf(m) - 1]?.content ?? ""}
                       proposed={parts.proposed_transaction}
+                      savedTransactionId={parts.saved_transaction_id ?? null}
                     />
                   )}
                 </Message>

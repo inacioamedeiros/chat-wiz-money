@@ -152,12 +152,15 @@ export const sendChatMessage = createServerFn({ method: "POST" })
       is_recurring: boolean;
     } = null;
 
+    let savedTransactionId: string | null = null;
     if (
       (nlu.intent === "register_expense" || nlu.intent === "register_income") &&
       nlu.entities.amount && nlu.entities.amount > 0
     ) {
+      const kind = nlu.intent === "register_expense" ? "expense" : "income";
+      const occurred_at = nlu.entities.date ?? new Date().toISOString().slice(0, 10);
       proposedTransaction = {
-        kind: nlu.intent === "register_expense" ? "expense" : "income",
+        kind,
         amount: nlu.entities.amount,
         category: nlu.entities.category,
         category_confidence: nlu.entities.category_confidence,
@@ -165,10 +168,47 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           (c) => ALL_CATEGORIES.includes(c as (typeof ALL_CATEGORIES)[number]),
         ),
         merchant: nlu.entities.merchant,
-        occurred_at: nlu.entities.date ?? new Date().toISOString().slice(0, 10),
+        occurred_at,
         note: nlu.entities.note,
         is_recurring: nlu.entities.recurrence_flag,
       };
+
+      // Auto-save da transação
+      try {
+        let categoryId: string | null = null;
+        if (nlu.entities.category) {
+          const { data: cat } = await supabase
+            .from("categories").select("id").eq("name", nlu.entities.category)
+            .or(`user_id.eq.${userId},user_id.is.null`).limit(1).maybeSingle();
+          categoryId = cat?.id ?? null;
+        }
+        const { data: acc } = await supabase
+          .from("accounts").select("id").eq("user_id", userId).eq("is_default", true).limit(1).maybeSingle();
+        const { data: tx, error: txErr } = await supabase.from("transactions").insert({
+          user_id: userId,
+          account_id: acc?.id ?? null,
+          category_id: categoryId,
+          kind,
+          amount: nlu.entities.amount,
+          merchant: nlu.entities.merchant,
+          description: nlu.entities.merchant ?? nlu.entities.note,
+          note: nlu.entities.note,
+          occurred_at,
+          is_recurring: nlu.entities.recurrence_flag,
+          source: "chat",
+          raw_message_id: userMsg.id,
+          confidence: nlu.entities.category_confidence,
+        }).select().single();
+        if (!txErr && tx) {
+          savedTransactionId = tx.id;
+          const sign = kind === "expense" ? "-" : "+";
+          nlu.reply = `${nlu.reply}\n\n✅ Salvo: ${sign}R$ ${nlu.entities.amount.toFixed(2)}${nlu.entities.category ? ` em ${nlu.entities.category}` : ""}.`;
+        } else if (txErr) {
+          console.error("[chat] auto-save tx error", txErr);
+        }
+      } catch (e) {
+        console.error("[chat] auto-save tx exception", e);
+      }
     }
 
     // 5b. ações de meta
@@ -225,6 +265,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           entities: nlu.entities,
           proposed_transaction: proposedTransaction,
           goal_action: goalAction,
+          saved_transaction_id: savedTransactionId,
         },
       })
       .select()
@@ -339,5 +380,76 @@ export const saveProposedTransaction = createServerFn({ method: "POST" })
       });
     }
 
+    return tx;
+  });
+
+// Desfazer/excluir uma transação auto-salva
+export const deleteTransaction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", data.id)
+      .eq("user_id", userId);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+// Atualiza categoria/campos de uma transação já salva (correção via chat)
+const UpdateTxInput = z.object({
+  id: z.string().uuid(),
+  category: z.string().nullable(),
+  amount: z.number().positive(),
+  merchant: z.string().nullable(),
+  note: z.string().nullable(),
+  occurred_at: z.string(),
+  is_recurring: z.boolean(),
+  original_category: z.string().nullable(),
+  original_confidence: z.number().nullable(),
+  original_text: z.string(),
+});
+
+export const updateTransaction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateTxInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    let categoryId: string | null = null;
+    if (data.category) {
+      const { data: cat } = await supabase
+        .from("categories").select("id").eq("name", data.category)
+        .or(`user_id.eq.${userId},user_id.is.null`).limit(1).maybeSingle();
+      categoryId = cat?.id ?? null;
+    }
+    const { data: tx, error } = await supabase
+      .from("transactions")
+      .update({
+        category_id: categoryId,
+        amount: data.amount,
+        merchant: data.merchant,
+        note: data.note,
+        occurred_at: data.occurred_at,
+        is_recurring: data.is_recurring,
+      })
+      .eq("id", data.id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (data.original_category && data.category && data.original_category !== data.category) {
+      await supabase.from("classification_corrections").insert({
+        user_id: userId,
+        text: data.original_text,
+        amount: data.amount,
+        merchant: data.merchant,
+        predicted_category: data.original_category,
+        predicted_confidence: data.original_confidence,
+        corrected_category: data.category,
+      });
+    }
     return tx;
   });
