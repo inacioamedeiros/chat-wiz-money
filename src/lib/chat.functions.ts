@@ -152,12 +152,15 @@ export const sendChatMessage = createServerFn({ method: "POST" })
       is_recurring: boolean;
     } = null;
 
+    let savedTransactionId: string | null = null;
     if (
       (nlu.intent === "register_expense" || nlu.intent === "register_income") &&
       nlu.entities.amount && nlu.entities.amount > 0
     ) {
+      const kind = nlu.intent === "register_expense" ? "expense" : "income";
+      const occurred_at = nlu.entities.date ?? new Date().toISOString().slice(0, 10);
       proposedTransaction = {
-        kind: nlu.intent === "register_expense" ? "expense" : "income",
+        kind,
         amount: nlu.entities.amount,
         category: nlu.entities.category,
         category_confidence: nlu.entities.category_confidence,
@@ -165,10 +168,47 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           (c) => ALL_CATEGORIES.includes(c as (typeof ALL_CATEGORIES)[number]),
         ),
         merchant: nlu.entities.merchant,
-        occurred_at: nlu.entities.date ?? new Date().toISOString().slice(0, 10),
+        occurred_at,
         note: nlu.entities.note,
         is_recurring: nlu.entities.recurrence_flag,
       };
+
+      // Auto-save da transação
+      try {
+        let categoryId: string | null = null;
+        if (nlu.entities.category) {
+          const { data: cat } = await supabase
+            .from("categories").select("id").eq("name", nlu.entities.category)
+            .or(`user_id.eq.${userId},user_id.is.null`).limit(1).maybeSingle();
+          categoryId = cat?.id ?? null;
+        }
+        const { data: acc } = await supabase
+          .from("accounts").select("id").eq("user_id", userId).eq("is_default", true).limit(1).maybeSingle();
+        const { data: tx, error: txErr } = await supabase.from("transactions").insert({
+          user_id: userId,
+          account_id: acc?.id ?? null,
+          category_id: categoryId,
+          kind,
+          amount: nlu.entities.amount,
+          merchant: nlu.entities.merchant,
+          description: nlu.entities.merchant ?? nlu.entities.note,
+          note: nlu.entities.note,
+          occurred_at,
+          is_recurring: nlu.entities.recurrence_flag,
+          source: "chat",
+          raw_message_id: userMsg.id,
+          confidence: nlu.entities.category_confidence,
+        }).select().single();
+        if (!txErr && tx) {
+          savedTransactionId = tx.id;
+          const sign = kind === "expense" ? "-" : "+";
+          nlu.reply = `${nlu.reply}\n\n✅ Salvo: ${sign}R$ ${nlu.entities.amount.toFixed(2)}${nlu.entities.category ? ` em ${nlu.entities.category}` : ""}.`;
+        } else if (txErr) {
+          console.error("[chat] auto-save tx error", txErr);
+        }
+      } catch (e) {
+        console.error("[chat] auto-save tx exception", e);
+      }
     }
 
     // 5b. ações de meta
