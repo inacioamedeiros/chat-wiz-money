@@ -382,3 +382,74 @@ export const saveProposedTransaction = createServerFn({ method: "POST" })
 
     return tx;
   });
+
+// Desfazer/excluir uma transação auto-salva
+export const deleteTransaction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", data.id)
+      .eq("user_id", userId);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+// Atualiza categoria/campos de uma transação já salva (correção via chat)
+const UpdateTxInput = z.object({
+  id: z.string().uuid(),
+  category: z.string().nullable(),
+  amount: z.number().positive(),
+  merchant: z.string().nullable(),
+  note: z.string().nullable(),
+  occurred_at: z.string(),
+  is_recurring: z.boolean(),
+  original_category: z.string().nullable(),
+  original_confidence: z.number().nullable(),
+  original_text: z.string(),
+});
+
+export const updateTransaction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateTxInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    let categoryId: string | null = null;
+    if (data.category) {
+      const { data: cat } = await supabase
+        .from("categories").select("id").eq("name", data.category)
+        .or(`user_id.eq.${userId},user_id.is.null`).limit(1).maybeSingle();
+      categoryId = cat?.id ?? null;
+    }
+    const { data: tx, error } = await supabase
+      .from("transactions")
+      .update({
+        category_id: categoryId,
+        amount: data.amount,
+        merchant: data.merchant,
+        note: data.note,
+        occurred_at: data.occurred_at,
+        is_recurring: data.is_recurring,
+      })
+      .eq("id", data.id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (data.original_category && data.category && data.original_category !== data.category) {
+      await supabase.from("classification_corrections").insert({
+        user_id: userId,
+        text: data.original_text,
+        amount: data.amount,
+        merchant: data.merchant,
+        predicted_category: data.original_category,
+        predicted_confidence: data.original_confidence,
+        corrected_category: data.category,
+      });
+    }
+    return tx;
+  });
