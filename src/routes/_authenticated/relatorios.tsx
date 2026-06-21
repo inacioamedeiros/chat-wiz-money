@@ -121,7 +121,7 @@ function ReportsPage() {
             <p className="text-sm text-muted-foreground py-4">—</p>
           ) : (
             <ul className="space-y-2">
-              {report.topCategories.map(([name, value]) => (
+              {report.topCategories.map(({ name, value }) => (
                 <li key={name} className="flex justify-between text-sm">
                   <span>{name}</span>
                   <span className="font-medium">{formatBRL(value)}</span>
