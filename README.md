@@ -53,6 +53,7 @@ Principais funcionalidades:
 - Relatórios simples e personalizados com visão mensal e saldo estimado.  
 
 O diferencial é a **simplicidade**: em vez de formulários complexos, o usuário conversa com o app como se fosse um consultor pessoal.
+<img width="1200" height="658" alt="image" src="https://github.com/user-attachments/assets/24d4995f-e039-4c68-8dbd-a2fc8dd473b4" />
 
 ---
 
