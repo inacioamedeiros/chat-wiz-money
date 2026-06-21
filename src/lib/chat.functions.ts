@@ -203,8 +203,8 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           .from("goals").select("*").eq("user_id", userId).ilike("title", `%${nlu.entities.goal_title}%`).limit(1).maybeSingle();
         if (existing) {
           await supabase.from("goals").delete().eq("id", existing.id);
-          goalAction = { action: "deleted", goal: existing, message: `Meta "${existing.title}" removida.` };
-          nlu.reply = `${nlu.reply}\n\n🗑️ ${goalAction.message}`;
+          goalAction = { action: "deleted", goal_id: existing.id, goal_title: existing.title, message: `Meta "${existing.title}" removida.` };
+          nlu.reply = `${nlu.reply}\n\n🗑️ ${goalAction!.message}`;
         }
       }
     } catch (e) {
