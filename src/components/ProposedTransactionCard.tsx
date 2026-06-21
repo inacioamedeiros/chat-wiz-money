@@ -5,11 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { saveProposedTransaction } from "@/lib/chat.functions";
-import { listAccounts, listCategories } from "@/lib/dashboard.functions";
+import { deleteTransaction, updateTransaction } from "@/lib/chat.functions";
+import { listCategories } from "@/lib/dashboard.functions";
 import { formatBRL } from "@/lib/finance";
 import { toast } from "sonner";
-import { Check, Pencil, X, Sparkles } from "lucide-react";
+import { Check, Pencil, Undo2, Sparkles } from "lucide-react";
 
 type Proposed = {
   kind: "expense" | "income";
@@ -24,18 +24,20 @@ type Proposed = {
 };
 
 export function ProposedTransactionCard({
-  messageId,
+  messageId: _messageId,
   proposed,
   originalText,
+  savedTransactionId,
 }: {
   messageId: string;
   proposed: Proposed;
   originalText: string;
+  savedTransactionId: string | null;
 }) {
   const qc = useQueryClient();
   const [edit, setEdit] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [cancelled, setCancelled] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [txId, setTxId] = useState(savedTransactionId);
 
   const [category, setCategory] = useState(proposed.category ?? "Outros");
   const [amount, setAmount] = useState(String(proposed.amount));
@@ -44,60 +46,64 @@ export function ProposedTransactionCard({
   const [note, setNote] = useState(proposed.note ?? "");
   const [recurring, setRecurring] = useState(proposed.is_recurring);
 
-  const fetchAccounts = useServerFn(listAccounts);
   const fetchCategories = useServerFn(listCategories);
-  const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: () => fetchAccounts() });
   const categoriesQ = useQuery({ queryKey: ["categories"], queryFn: () => fetchCategories() });
 
-  const save = useServerFn(saveProposedTransaction);
-  const m = useMutation({
-    mutationFn: () => save({
-      data: {
-        messageId,
-        kind: proposed.kind,
-        amount: Number(amount),
-        category: category || null,
-        merchant: merchant || null,
-        occurred_at: date,
-        note: note || null,
-        is_recurring: recurring,
-        account_id: accountsQ.data?.[0]?.id ?? null,
-        original_category: proposed.category,
-        original_confidence: proposed.category_confidence,
-        original_text: originalText,
-      },
-    }),
+  const delFn = useServerFn(deleteTransaction);
+  const updFn = useServerFn(updateTransaction);
+
+  const delM = useMutation({
+    mutationFn: () => delFn({ data: { id: txId! } }),
     onSuccess: () => {
-      setSaved(true);
-      toast.success("Transação salva!");
+      setDeleted(true);
+      setTxId(null);
+      toast.success("Transação removida");
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
-  if (cancelled) return null;
+  const updM = useMutation({
+    mutationFn: () => updFn({
+      data: {
+        id: txId!,
+        category: category || null,
+        amount: Number(amount),
+        merchant: merchant || null,
+        note: note || null,
+        occurred_at: date,
+        is_recurring: recurring,
+        original_category: proposed.category,
+        original_confidence: proposed.category_confidence,
+        original_text: originalText,
+      },
+    }),
+    onSuccess: () => {
+      setEdit(false);
+      toast.success("Transação atualizada");
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
 
-  const lowConfidence = (proposed.category_confidence ?? 1) < 0.7;
-  const cats = (categoriesQ.data ?? []).filter((c) => c.kind === proposed.kind);
-
-  if (saved) {
+  if (deleted || !txId) {
     return (
-      <Card className="border-success/40 bg-success/5 mt-2 max-w-md">
-        <CardContent className="p-3 flex items-center gap-2 text-sm">
-          <Check className="w-4 h-4 text-success" />
-          <span className="text-success-foreground font-medium">Salva</span>
-          <span className="text-muted-foreground">· {formatBRL(amount)} · {category}</span>
-        </CardContent>
+      <Card className="border-muted mt-2 max-w-md opacity-60">
+        <CardContent className="p-3 text-sm text-muted-foreground">Transação removida.</CardContent>
       </Card>
     );
   }
 
+  const lowConfidence = (proposed.category_confidence ?? 1) < 0.7;
+  const cats = (categoriesQ.data ?? []).filter((c) => c.kind === proposed.kind);
+
   return (
     <Card className="border-primary/20 mt-2 max-w-md shadow-soft">
       <CardContent className="p-4">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-          <Sparkles className="w-3 h-3" /> Transação detectada
+        <div className="flex items-center gap-1.5 text-xs text-success mb-2">
+          <Check className="w-3 h-3" /> Salva automaticamente
         </div>
 
         {!edit ? (
@@ -115,31 +121,30 @@ export function ProposedTransactionCard({
 
             {lowConfidence && proposed.category_alternatives.length > 0 && (
               <div className="mt-3">
-                <p className="text-xs text-muted-foreground mb-1.5">Categoria pouco certa. Talvez:</p>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1.5">
+                  <Sparkles className="w-3 h-3" /> Categoria pouco certa. Trocar para:
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {proposed.category_alternatives.slice(0, 3).map((alt) => (
                     <button
                       key={alt}
-                      onClick={() => setCategory(alt)}
-                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${category === alt ? "bg-primary text-primary-foreground border-primary" : "hover:bg-secondary"}`}
+                      onClick={() => { setCategory(alt); updM.mutate(); }}
+                      disabled={updM.isPending}
+                      className="text-xs px-2.5 py-1 rounded-full border hover:bg-secondary"
                     >
                       {alt}
                     </button>
                   ))}
-                  <button onClick={() => setEdit(true)} className="text-xs px-2.5 py-1 rounded-full border hover:bg-secondary">Outra</button>
                 </div>
               </div>
             )}
 
             <div className="flex gap-2 mt-3">
-              <Button size="sm" onClick={() => m.mutate()} disabled={m.isPending} className="flex-1">
-                <Check className="w-4 h-4" /> Salvar
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setEdit(true)}>
+              <Button size="sm" variant="outline" onClick={() => setEdit(true)} className="flex-1">
                 <Pencil className="w-4 h-4" /> Editar
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setCancelled(true)} aria-label="Cancelar">
-                <X className="w-4 h-4" />
+              <Button size="sm" variant="ghost" onClick={() => delM.mutate()} disabled={delM.isPending}>
+                <Undo2 className="w-4 h-4" /> Desfazer
               </Button>
             </div>
           </>
@@ -178,8 +183,8 @@ export function ProposedTransactionCard({
               Marcar como recorrente
             </label>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => m.mutate()} disabled={m.isPending} className="flex-1">
-                Salvar
+              <Button size="sm" onClick={() => updM.mutate()} disabled={updM.isPending} className="flex-1">
+                Salvar alterações
               </Button>
               <Button size="sm" variant="outline" onClick={() => setEdit(false)}>Voltar</Button>
             </div>
