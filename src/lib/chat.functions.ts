@@ -171,6 +171,46 @@ export const sendChatMessage = createServerFn({ method: "POST" })
       };
     }
 
+    // 5b. ações de meta
+    let goalAction: null | { action: "created" | "updated" | "deleted"; goal: Record<string, unknown> | null; message: string } = null;
+    try {
+      if (nlu.intent === "create_goal" && nlu.entities.goal_title && nlu.entities.goal_target_amount && nlu.entities.goal_target_amount > 0) {
+        const { data: g, error } = await supabase.from("goals").insert({
+          user_id: userId,
+          title: nlu.entities.goal_title,
+          target_amount: nlu.entities.goal_target_amount,
+          current_amount: nlu.entities.goal_current_amount ?? 0,
+          target_date: nlu.entities.goal_target_date,
+        }).select().single();
+        if (!error && g) {
+          goalAction = { action: "created", goal: g, message: `Meta "${g.title}" criada: R$ ${Number(g.target_amount).toFixed(2)}${g.target_date ? ` até ${g.target_date}` : ""}.` };
+          nlu.reply = `${nlu.reply}\n\n✅ ${goalAction.message}`;
+        }
+      } else if (nlu.intent === "update_goal" && nlu.entities.goal_title && nlu.entities.amount && nlu.entities.amount > 0) {
+        const { data: existing } = await supabase
+          .from("goals").select("*").eq("user_id", userId).ilike("title", `%${nlu.entities.goal_title}%`).limit(1).maybeSingle();
+        if (existing) {
+          const newAmount = Number(existing.current_amount) + nlu.entities.amount;
+          const { data: g } = await supabase.from("goals").update({ current_amount: newAmount }).eq("id", existing.id).select().single();
+          if (g) {
+            const remaining = Math.max(0, Number(g.target_amount) - newAmount);
+            goalAction = { action: "updated", goal: g, message: `+R$ ${nlu.entities.amount.toFixed(2)} em "${g.title}". Faltam R$ ${remaining.toFixed(2)}.` };
+            nlu.reply = `${nlu.reply}\n\n✅ ${goalAction.message}`;
+          }
+        }
+      } else if (nlu.intent === "delete_goal" && nlu.entities.goal_title) {
+        const { data: existing } = await supabase
+          .from("goals").select("*").eq("user_id", userId).ilike("title", `%${nlu.entities.goal_title}%`).limit(1).maybeSingle();
+        if (existing) {
+          await supabase.from("goals").delete().eq("id", existing.id);
+          goalAction = { action: "deleted", goal: existing, message: `Meta "${existing.title}" removida.` };
+          nlu.reply = `${nlu.reply}\n\n🗑️ ${goalAction.message}`;
+        }
+      }
+    } catch (e) {
+      console.error("[chat] goal action error", e);
+    }
+
     // 6. salva resposta do assistente
     const { data: asstMsg, error: asstErr } = await supabase
       .from("messages")
