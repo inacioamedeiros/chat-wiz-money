@@ -224,6 +224,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           intent_confidence: nlu.intent_confidence,
           entities: nlu.entities,
           proposed_transaction: proposedTransaction,
+          goal_action: goalAction,
         },
       })
       .select()
