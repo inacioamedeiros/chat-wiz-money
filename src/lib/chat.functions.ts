@@ -194,8 +194,8 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           const { data: g } = await supabase.from("goals").update({ current_amount: newAmount }).eq("id", existing.id).select().single();
           if (g) {
             const remaining = Math.max(0, Number(g.target_amount) - newAmount);
-            goalAction = { action: "updated", goal: g, message: `+R$ ${nlu.entities.amount.toFixed(2)} em "${g.title}". Faltam R$ ${remaining.toFixed(2)}.` };
-            nlu.reply = `${nlu.reply}\n\n✅ ${goalAction.message}`;
+            goalAction = { action: "updated", goal_id: g.id, goal_title: g.title, message: `+R$ ${nlu.entities.amount.toFixed(2)} em "${g.title}". Faltam R$ ${remaining.toFixed(2)}.` };
+            nlu.reply = `${nlu.reply}\n\n✅ ${goalAction!.message}`;
           }
         }
       } else if (nlu.intent === "delete_goal" && nlu.entities.goal_title) {
